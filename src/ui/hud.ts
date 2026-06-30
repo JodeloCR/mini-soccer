@@ -1,7 +1,7 @@
 // In-match overlay: scoreboard, kickoff countdown, GOAL flash, win screen +
 // rematch, transport badge, and a portrait "rotate your phone" hint.
 
-import { TEAM } from "../config";
+import { TEAM, type TeamDef } from "../config";
 import type { GameState, Role } from "../net/protocol";
 
 export class Hud {
@@ -10,6 +10,10 @@ export class Hud {
   private onRematch: () => void = () => {};
   private lastPhase = "";
   private lastScorer: Role | null = null;
+  private teams: { host: { name: string; color: string }; guest: { name: string; color: string } } = {
+    host: TEAM.host,
+    guest: TEAM.guest,
+  };
 
   constructor(root: HTMLElement) {
     this.el = document.createElement("div");
@@ -30,6 +34,15 @@ export class Hud {
   setRole(role: Role, onRematch: () => void) {
     this.myRole = role;
     this.onRematch = onRematch;
+  }
+
+  setTeams(host: TeamDef, guest: TeamDef) {
+    this.teams = { host, guest };
+    (this.el.querySelector(".team.host") as HTMLElement).innerHTML =
+      `<i></i>${host.name} <b id="sh">0</b>`;
+    (this.el.querySelector(".team.guest") as HTMLElement).innerHTML =
+      `<b id="sg">0</b> ${guest.name}<i></i>`;
+    this.styleTeamChips();
   }
 
   setTransport(kind: string) {
@@ -86,13 +99,13 @@ export class Hud {
   }
 
   private teamName(r: Role | null) {
-    return r ? TEAM[r].name : "";
+    return r ? this.teams[r].name : "";
   }
 
   private styleTeamChips() {
     const chips = this.el.querySelectorAll(".team i");
-    (chips[0] as HTMLElement).style.background = TEAM.host.color;
-    (chips[1] as HTMLElement).style.background = TEAM.guest.color;
+    (chips[0] as HTMLElement).style.background = this.teams.host.color;
+    (chips[1] as HTMLElement).style.background = this.teams.guest.color;
   }
 }
 

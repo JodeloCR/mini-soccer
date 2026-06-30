@@ -15,6 +15,8 @@ export class Scene3D {
   private ball!: THREE.Mesh;
   private pHost!: THREE.Group;
   private pGuest!: THREE.Group;
+  private hostMat!: THREE.MeshStandardMaterial;
+  private guestMat!: THREE.MeshStandardMaterial;
   private prevBall = { x: 0, y: 0 };
 
   constructor(private container: HTMLElement) {
@@ -37,8 +39,8 @@ export class Scene3D {
     this.addGoals();
     this.ball = this.makeBall();
     this.scene.add(this.ball);
-    this.pHost = this.makePlayer(TEAM.host.color);
-    this.pGuest = this.makePlayer(TEAM.guest.color);
+    [this.pHost, this.hostMat] = this.makePlayer(TEAM.host.color);
+    [this.pGuest, this.guestMat] = this.makePlayer(TEAM.guest.color);
     this.scene.add(this.pHost, this.pGuest);
 
     this.resize();
@@ -139,11 +141,12 @@ export class Scene3D {
     return ball;
   }
 
-  private makePlayer(color: string) {
+  private makePlayer(color: string): [THREE.Group, THREE.MeshStandardMaterial] {
     const g = new THREE.Group();
+    const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.55 });
     const body = new THREE.Mesh(
       new THREE.CylinderGeometry(PHYS.playerRadius, PHYS.playerRadius * 0.95, 0.7, 24),
-      new THREE.MeshStandardMaterial({ color, roughness: 0.55 }),
+      mat,
     );
     body.position.y = 0.35;
     body.castShadow = true;
@@ -154,7 +157,13 @@ export class Scene3D {
     top.position.y = 0.78;
     top.castShadow = true;
     g.add(body, top);
-    return g;
+    return [g, mat];
+  }
+
+  /** Recolor the two players from chosen team colors. */
+  setColors(hostColor: string, guestColor: string) {
+    this.hostMat.color.set(hostColor);
+    this.guestMat.color.set(guestColor);
   }
 
   apply(s: GameState) {

@@ -2,7 +2,7 @@
 // and "joining…" (guest). Hidden once the match begins.
 
 import QRCode from "qrcode";
-import { BRAND } from "../config";
+import { BRAND, TEAMS } from "../config";
 
 export class Lobby {
   private el: HTMLElement;
@@ -54,6 +54,51 @@ export class Lobby {
         <div class="subtitle">${BRAND.name} ${BRAND.tagline}</div>
         <p class="hint waiting">Conectando a la sala <b>${code}</b>…</p>
       </div>`;
+  }
+
+  // --- team selection ---
+  private onPick: (teamId: string) => void = () => {};
+
+  showSelect(onPick: (teamId: string) => void) {
+    this.onPick = onPick;
+    this.el.style.display = "flex";
+    this.el.innerHTML = `
+      <div class="card select">
+        <div class="subtitle">Elegí tu equipo</div>
+        <div class="teamgrid" id="grid"></div>
+        <p class="hint" id="selhint">Tocá un platillo</p>
+      </div>`;
+    this.renderSelect(null, null);
+  }
+
+  /** mine/opp = chosen team ids (null if unchosen). Opponent's team is locked. */
+  renderSelect(mine: string | null, opp: string | null) {
+    const grid = this.el.querySelector("#grid");
+    if (!grid) return;
+    grid.innerHTML = TEAMS.map((t) => {
+      const isMine = t.id === mine;
+      const isOpp = t.id === opp;
+      const cls = ["team-chip", isMine ? "mine" : "", isOpp ? "taken" : ""].join(" ").trim();
+      return `<button class="${cls}" data-id="${t.id}" ${isOpp ? "disabled" : ""}>
+          <span class="swatch" style="background:${t.color}"></span>
+          <span class="tname">${t.name}</span>
+        </button>`;
+    }).join("");
+    grid.querySelectorAll<HTMLButtonElement>(".team-chip").forEach((btn) => {
+      btn.onclick = () => {
+        if (btn.disabled) return;
+        this.onPick(btn.dataset.id!);
+      };
+    });
+    const hint = this.el.querySelector("#selhint");
+    if (hint) {
+      hint.textContent = !mine
+        ? "Tocá un platillo"
+        : !opp
+          ? "Esperando al rival…"
+          : "¡Listos! Arrancando…";
+      hint.classList.toggle("waiting", !!mine && !opp);
+    }
   }
 
   showError(msg: string) {

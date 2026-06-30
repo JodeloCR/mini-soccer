@@ -9,10 +9,30 @@ export const BRAND = {
   logoPath: "/logo.png", // drop a transparent PNG here (optional)
 };
 
-// Team identities (host = the phone that starts the match).
+// Selectable teams = Huateque menu items. Players pick one; the two players
+// can't share a team. Colors evoke each dish.
+export interface TeamDef {
+  id: string;
+  name: string;
+  color: string;
+}
+export const TEAMS: TeamDef[] = [
+  { id: "guacamole", name: "Guacamole", color: "#4CAF50" },
+  { id: "tortas", name: "Tortas", color: "#D98E04" },
+  { id: "pastor", name: "Tacos Pastor", color: "#E8482B" },
+  { id: "varios", name: "Varios", color: "#9B59B6" },
+  { id: "campechanos", name: "Campechanos", color: "#8D5524" },
+  { id: "sopes", name: "Sopes", color: "#F2C14E" },
+  { id: "enchipotladas", name: "Enchipotladas", color: "#B71C1C" },
+];
+export function teamById(id: string | null): TeamDef | null {
+  return TEAMS.find((t) => t.id === id) ?? null;
+}
+
+// Fallback identities used before a team is chosen.
 export const TEAM = {
-  host: { name: "Rojo", color: "#E63A1F" },
-  guest: { name: "Azul", color: "#2E7DF7" },
+  host: { name: "Local", color: "#E63A1F" },
+  guest: { name: "Visita", color: "#2E7DF7" },
 };
 
 // 2D simulation plane. x = long axis (goals at ±W/2). y = short axis (walls at ±H/2).

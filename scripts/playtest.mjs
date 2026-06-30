@@ -36,11 +36,20 @@ await host.waitForSelector(".code b");
 const code = await host.$eval(".code b", (e) => e.textContent.trim());
 
 // ---- headless guest over ws (mirrors transport's relay path) ----
+const IDS = ["guacamole", "tortas", "pastor", "varios", "campechanos", "sopes", "enchipotladas"];
+let guestPicked = false;
 const gw = new WebSocket("ws://localhost:8080/ws");
 gw.on("open", () => gw.send(JSON.stringify({ t: "join", code })));
 gw.on("message", (buf) => {
   const m = JSON.parse(buf.toString());
-  if (m.t === "peer-msg" && m.payload.t === "snapshot") {
+  if (m.t === "peer-msg" && m.payload.t === "teams") {
+    // pick any team that differs from the host's once the host has chosen
+    if (m.payload.host && !guestPicked) {
+      guestPicked = true;
+      const other = IDS.find((id) => id !== m.payload.host);
+      gw.send(JSON.stringify({ t: "msg", payload: { t: "pick", teamId: other } }));
+    }
+  } else if (m.t === "peer-msg" && m.payload.t === "snapshot") {
     const s = m.payload.state;
     const dx = s.ball.x - s.players.guest.x;
     const dy = s.ball.y - s.players.guest.y;
@@ -68,6 +77,10 @@ async function drive(dx, dy, kick) {
   held.clear();
   for (const k of want) held.add(k);
 }
+
+// host picks a team -> triggers guest pick -> match starts
+await host.waitForSelector("#grid .team-chip");
+await host.click('.team-chip[data-id="guacamole"]');
 
 let last = null;
 let won = null;

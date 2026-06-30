@@ -9,7 +9,7 @@ import { createState, step, startCountdown, resetMatch } from "./game/engine";
 import { Transport } from "./net/transport";
 import { Lobby } from "./ui/lobby";
 import { Hud } from "./ui/hud";
-import { PHYS } from "./config";
+import { PHYS, TEAM, teamById } from "./config";
 import { DEFAULT_INPUT, type Input, type Role } from "./net/protocol";
 
 const app = document.getElementById("app")!;
@@ -42,13 +42,17 @@ let guestInput: Input = { ...DEFAULT_INPUT };
 const buffer = new SnapshotBuffer();
 let lastInputSent = 0;
 
+// chosen teams (synced; host is authoritative). null = not picked yet.
+const teams: { host: string | null; guest: string | null } = { host: null, guest: null };
+
 const transport = new Transport({
   onRole: (r, code) => {
     role = r;
     hud.setRole(r, requestRematch);
     if (r === "host") void lobby.showHostWaiting(code);
+    else lobby.showSelect(pickTeam); // guest joined -> choose a team
   },
-  onPeerJoined: () => startMatch(), // host learns the guest arrived
+  onPeerJoined: () => lobby.showSelect(pickTeam), // host: guest arrived -> choose
   onPeerLeft: () => lobby.showError("El otro jugador se desconectó"),
   onError: (msg) => lobby.showError(msg),
   onTransport: (k) => hud.setTransport(k),
@@ -58,11 +62,50 @@ const transport = new Transport({
     } else if (m.t === "snapshot" && role === "guest") {
       buffer.push(m.state, performance.now());
       startMatch();
+    } else if (m.t === "pick" && role === "host") {
+      // guest requested a team; accept only if it differs from host's
+      if (m.teamId !== teams.host) teams.guest = m.teamId;
+      transport.send({ t: "teams", host: teams.host, guest: teams.guest });
+      onTeamsChanged();
+    } else if (m.t === "teams" && role === "guest") {
+      teams.host = m.host;
+      teams.guest = m.guest;
+      onTeamsChanged();
     } else if (m.t === "rematch" && role === "host") {
       resetMatch(state);
     }
   },
 });
+
+function pickTeam(teamId: string) {
+  if (role === "host") {
+    if (teamId === teams.guest) return; // can't take opponent's team
+    teams.host = teamId;
+    transport.send({ t: "teams", host: teams.host, guest: teams.guest });
+    onTeamsChanged();
+  } else {
+    if (teamId === teams.host) return; // taken by opponent
+    teams.guest = teamId; // optimistic; host echo confirms/corrects
+    transport.send({ t: "pick", teamId });
+    onTeamsChanged();
+  }
+}
+
+function onTeamsChanged() {
+  const mine = role === "host" ? teams.host : teams.guest;
+  const opp = role === "host" ? teams.guest : teams.host;
+  if (!started) lobby.renderSelect(mine, opp);
+
+  const h = teamById(teams.host);
+  const g = teamById(teams.guest);
+  scene.setColors((h ?? TEAM.host).color, (g ?? TEAM.guest).color);
+  if (h && g) hud.setTeams(h, g);
+
+  // host starts once both teams are chosen and distinct
+  if (role === "host" && teams.host && teams.guest && teams.host !== teams.guest) {
+    startMatch();
+  }
+}
 
 // dev/test hook: current game state (host = authoritative, guest = latest snapshot)
 (window as unknown as { __gs?: () => unknown }).__gs = () =>

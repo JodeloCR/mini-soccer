@@ -57,6 +57,8 @@ export type PeerMsg =
   | { t: "input"; input: Input }
   | { t: "snapshot"; state: GameState }
   | { t: "rtc"; data: RtcSignal }
+  | { t: "pick"; teamId: string } // guest -> host: requested team
+  | { t: "teams"; host: string | null; guest: string | null } // host -> guest: authoritative
   | { t: "rematch" };
 
 export type RtcSignal =
