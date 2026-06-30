@@ -64,6 +64,10 @@ const transport = new Transport({
   },
 });
 
+// dev/test hook: current game state (host = authoritative, guest = latest snapshot)
+(window as unknown as { __gs?: () => unknown }).__gs = () =>
+  role === "host" ? state : buffer.latest();
+
 function startMatch() {
   if (started) return;
   started = true;
