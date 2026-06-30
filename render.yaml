@@ -1,0 +1,14 @@
+# One-click deploy blueprint for Render (https://render.com).
+# In Render: New + → Blueprint → pick this repo. It reads this file.
+services:
+  - type: web
+    name: huateque-mini-futbol
+    runtime: node
+    plan: free # free tier sleeps when idle (~30s cold start). Upgrade to "starter" for always-on.
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "20"

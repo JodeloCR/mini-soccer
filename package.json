@@ -4,6 +4,9 @@
   "private": true,
   "type": "module",
   "description": "Huateque CR - 3D top-down 1v1 mini soccer for two phones via QR",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "vite",
     "server:dev": "tsx watch server/index.ts",

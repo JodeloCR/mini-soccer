@@ -83,13 +83,21 @@ export class Hud {
     if (this.lastPhase === "won") return; // already rendered
     this.lastPhase = "won";
     const iWon = s.winner === this.myRole;
-    msg.className = "center-msg show win";
-    msg.innerHTML = `
-      <div class="win-title">${iWon ? "¡GANASTE! 🏆" : "Perdiste"}</div>
-      <div class="win-sub">${this.teamName(s.winner)} gana ${s.score[s.winner!]} - ${
-        s.score[other(s.winner!)]
-      }</div>
-      <button class="big-btn" id="rematch">Revancha</button>`;
+    const score = `${s.score[s.winner!]} - ${s.score[other(s.winner!)]}`;
+    msg.className = `center-msg show win ${iWon ? "victory" : "defeat"}`;
+    msg.innerHTML = iWon
+      ? `
+        <div class="win-emoji">🎉🏆</div>
+        <div class="win-title">¡GANASTE!</div>
+        <div class="win-line">Le toca a tu amigo invitar!</div>
+        <div class="win-sub">${this.teamName(s.winner)} · ${score}</div>
+        <button class="big-btn" id="rematch">Revancha</button>`
+      : `
+        <div class="win-emoji">💸🧾</div>
+        <div class="win-title">¡Perdiste!</div>
+        <div class="win-line">Te toca pagar la cuenta!</div>
+        <div class="win-sub">${this.teamName(s.winner)} ganó ${score}</div>
+        <button class="big-btn" id="rematch">Revancha</button>`;
     (msg.querySelector("#rematch") as HTMLElement).onclick = () => this.onRematch();
   }
 
