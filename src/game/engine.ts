@@ -25,13 +25,14 @@ export function createState(): GameState {
 }
 
 function mkPlayer(): Player {
-  return { x: 0, y: 0, vx: 0, vy: 0, cd: 0, dash: false };
+  return { x: 0, y: 0, vx: 0, vy: 0, dashCd: 0, kickCd: 0, dashing: false, kicking: false };
 }
 
 export function resetPositions(s: GameState) {
   s.ball = { x: 0, y: 0, vx: 0, vy: 0 };
-  Object.assign(s.players.host, { x: -HW * 0.5, y: 0, vx: 0, vy: 0, cd: 0, dash: false });
-  Object.assign(s.players.guest, { x: HW * 0.5, y: 0, vx: 0, vy: 0, cd: 0, dash: false });
+  const reset = { y: 0, vx: 0, vy: 0, dashCd: 0, kickCd: 0, dashing: false, kicking: false };
+  Object.assign(s.players.host, reset, { x: -HW * 0.5 });
+  Object.assign(s.players.guest, reset, { x: HW * 0.5 });
 }
 
 export function startCountdown(s: GameState) {
@@ -79,6 +80,8 @@ export function step(s: GameState, hostIn: Input, guestIn: Input, dt: number) {
 
   collideBall(b, s.players.host);
   collideBall(b, s.players.guest);
+  applyKick(b, s.players.host, hostIn, dt);
+  applyKick(b, s.players.guest, guestIn, dt);
   clampBallSpeed(b);
 
   const r = PHYS.ballRadius;
@@ -103,33 +106,33 @@ export function step(s: GameState, hostIn: Input, guestIn: Input, dt: number) {
 }
 
 function movePlayer(p: Player, inp: Input, dt: number) {
-  p.dash = false;
-  if (p.cd > 0) p.cd -= dt;
+  p.dashing = false;
+  if (p.dashCd > 0) p.dashCd -= dt;
 
   const m = clampVec(inp.move);
   p.vx = approach(p.vx, m.x * PHYS.playerSpeed, PHYS.playerAccel * dt);
   p.vy = approach(p.vy, m.y * PHYS.playerSpeed, PHYS.playerAccel * dt);
 
-  if (inp.kick && p.cd <= 0) {
+  // DASH: burst of speed in the stick (or heading) direction
+  if (inp.dash && p.dashCd <= 0) {
     let dx = m.x;
     let dy = m.y;
     if (Math.hypot(dx, dy) < 0.05) {
       dx = p.vx;
-      dy = p.vy; // no stick direction -> dash along current heading
+      dy = p.vy;
     }
     const l = Math.hypot(dx, dy);
     if (l > 0.0001) {
-      p.vx += (dx / l) * PHYS.kickImpulse;
-      p.vy += (dy / l) * PHYS.kickImpulse;
-      p.cd = PHYS.kickCooldown;
-      p.dash = true;
+      p.vx += (dx / l) * PHYS.dashImpulse;
+      p.vy += (dy / l) * PHYS.dashImpulse;
+      p.dashCd = PHYS.dashCooldown;
+      p.dashing = true;
     }
   }
 
   p.x += p.vx * dt;
   p.y += p.vy * dt;
 
-  // keep players on the pitch
   const pr = PHYS.playerRadius;
   p.x = clamp(p.x, -HW + pr, HW - pr);
   p.y = clamp(p.y, -HH + pr, HH - pr);
@@ -149,11 +152,38 @@ function collideBall(b: Body, p: Player) {
   b.x = p.x + nx * min;
   b.y = p.y + ny * min;
 
-  // ball leaves along the contact normal, energized by player speed (+ dash)
-  const pvn = Math.max(0, p.vx * nx + p.vy * ny); // player speed toward ball
-  const speed = PHYS.hitBase + pvn * PHYS.hitTransfer + (p.dash ? PHYS.ballKickBoost : 0);
+  // ball leaves along the contact normal, energized by player speed
+  const pvn = Math.max(0, p.vx * nx + p.vy * ny);
+  const speed = PHYS.hitBase + pvn * PHYS.hitTransfer;
   b.vx = nx * speed + p.vx * 0.25;
   b.vy = ny * speed + p.vy * 0.25;
+}
+
+// KICK: strike the ball hard if it's within reach when the button is pressed
+function applyKick(b: Body, p: Player, inp: Input, dt: number) {
+  p.kicking = false;
+  if (p.kickCd > 0) p.kickCd -= dt;
+  if (!inp.kick || p.kickCd > 0) return;
+
+  const dx = b.x - p.x;
+  const dy = b.y - p.y;
+  const dist = Math.hypot(dx, dy);
+  if (dist > PHYS.playerRadius + PHYS.ballRadius + PHYS.kickReach) return;
+
+  let nx: number;
+  let ny: number;
+  if (dist < 1e-4) {
+    const h = Math.hypot(p.vx, p.vy) || 1;
+    nx = p.vx / h;
+    ny = p.vy / h;
+  } else {
+    nx = dx / dist;
+    ny = dy / dist;
+  }
+  b.vx = nx * PHYS.kickPower + p.vx * 0.3;
+  b.vy = ny * PHYS.kickPower + p.vy * 0.3;
+  p.kickCd = PHYS.kickCooldown;
+  p.kicking = true;
 }
 
 function scoreGoal(s: GameState, scorer: Role) {

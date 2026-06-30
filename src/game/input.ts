@@ -11,6 +11,7 @@ export class Controls {
   private kickHeld = false;
   private joyId: number | null = null;
   private origin = { x: 0, y: 0 };
+  private dashHeld = false;
   private base: HTMLElement;
   private knob: HTMLElement;
   private keys = new Set<string>();
@@ -21,27 +22,23 @@ export class Controls {
     wrap.innerHTML = `
       <div class="joy-zone" id="joy"></div>
       <div class="joy-base" id="base"><div class="joy-knob"></div></div>
-      <button class="kick" id="kick" aria-label="patear">KICK</button>`;
+      <button class="btn dash" id="dash" aria-label="correr">DASH</button>
+      <button class="btn kick" id="kick" aria-label="patear">KICK</button>`;
     root.appendChild(wrap);
 
     this.base = wrap.querySelector("#base") as HTMLElement;
     this.knob = wrap.querySelector(".joy-knob") as HTMLElement;
     const joy = wrap.querySelector("#joy") as HTMLElement;
     const kick = wrap.querySelector("#kick") as HTMLElement;
+    const dash = wrap.querySelector("#dash") as HTMLElement;
 
     joy.addEventListener("pointerdown", (e) => this.joyStart(e, joy));
     joy.addEventListener("pointermove", (e) => this.joyMove(e));
     joy.addEventListener("pointerup", (e) => this.joyEnd(e, joy));
     joy.addEventListener("pointercancel", (e) => this.joyEnd(e, joy));
 
-    const setKick = (v: boolean) => (e: Event) => {
-      e.preventDefault();
-      this.kickHeld = v;
-    };
-    kick.addEventListener("pointerdown", setKick(true));
-    kick.addEventListener("pointerup", setKick(false));
-    kick.addEventListener("pointercancel", setKick(false));
-    kick.addEventListener("pointerleave", setKick(false));
+    bindButton(kick, (v) => (this.kickHeld = v));
+    bindButton(dash, (v) => (this.dashHeld = v));
 
     addEventListener("keydown", (e) => this.keys.add(e.key.toLowerCase()));
     addEventListener("keyup", (e) => this.keys.delete(e.key.toLowerCase()));
@@ -57,7 +54,8 @@ export class Controls {
       mv.y /= l;
     }
     const kick = this.kickHeld || this.keys.has(" ") || this.keys.has("spacebar");
-    return { move: mv, kick };
+    const dash = this.dashHeld || this.keys.has("shift") || this.keys.has("k");
+    return { move: mv, dash, kick };
   }
 
   private joyStart(e: PointerEvent, joy: HTMLElement) {
@@ -111,4 +109,15 @@ export class Controls {
     if (this.keys.has("s") || this.keys.has("arrowdown")) y -= 1;
     return { x, y };
   }
+}
+
+function bindButton(el: HTMLElement, set: (v: boolean) => void) {
+  const on = (v: boolean) => (e: Event) => {
+    e.preventDefault();
+    set(v);
+  };
+  el.addEventListener("pointerdown", on(true));
+  el.addEventListener("pointerup", on(false));
+  el.addEventListener("pointercancel", on(false));
+  el.addEventListener("pointerleave", on(false));
 }

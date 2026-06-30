@@ -9,10 +9,11 @@ export interface Vec2 {
 
 export interface Input {
   move: Vec2; // normalized, magnitude 0..1
-  kick: boolean;
+  dash: boolean; // movement burst
+  kick: boolean; // strike the ball
 }
 
-export const DEFAULT_INPUT: Input = { move: { x: 0, y: 0 }, kick: false };
+export const DEFAULT_INPUT: Input = { move: { x: 0, y: 0 }, dash: false, kick: false };
 
 export type Phase = "waiting" | "countdown" | "playing" | "goal" | "won";
 
@@ -24,8 +25,10 @@ export interface Body {
 }
 
 export interface Player extends Body {
-  cd: number; // dash cooldown remaining (s)
-  dash: boolean; // dashed this tick (transient, drives ball boost)
+  dashCd: number; // dash cooldown remaining (s)
+  kickCd: number; // kick cooldown remaining (s)
+  dashing: boolean; // dashed this tick (transient, drives dash FX)
+  kicking: boolean; // kicked this tick (transient, drives kick FX)
 }
 
 export interface GameState {

@@ -50,14 +50,18 @@ export const PHYS = {
   ballRadius: 0.34,
   playerSpeed: 8.0, // top speed (units/s)
   playerAccel: 55, // approach accel (units/s^2)
-  kickImpulse: 9.0, // dash speed added to player
-  kickCooldown: 0.45, // s between dashes
+  // DASH = movement burst
+  dashImpulse: 12.0, // speed added in the dash direction
+  dashCooldown: 0.7, // s between dashes
+  // KICK = strike the ball
+  kickPower: 17.0, // ball speed imparted by a kick
+  kickReach: 0.5, // extra distance beyond touching at which a kick connects
+  kickCooldown: 0.4, // s between kicks
   ballDamping: 0.55, // ball velocity retained per second (lower = more friction)
   wallRestitution: 0.82,
-  hitBase: 4.0, // base ball nudge on any contact
+  hitBase: 3.5, // base ball nudge on plain contact
   hitTransfer: 1.0, // how much player speed transfers to ball
-  ballKickBoost: 7.0, // extra ball speed when contact happens during a dash
-  maxBallSpeed: 26,
+  maxBallSpeed: 32,
 };
 
 export const RULES = {

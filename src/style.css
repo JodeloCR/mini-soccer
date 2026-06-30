@@ -194,25 +194,36 @@ body {
   background: rgba(255, 255, 255, 0.9);
   box-shadow: 0 3px 10px rgba(0, 0, 0, 0.4);
 }
-.kick {
+.btn {
   position: absolute;
-  right: max(22px, env(safe-area-inset-right));
   bottom: max(34px, env(safe-area-inset-bottom));
-  width: 104px;
-  height: 104px;
   border-radius: 50%;
   border: none;
   pointer-events: auto;
   font-weight: 900;
-  font-size: 20px;
   letter-spacing: 1px;
   color: #fff;
-  background: radial-gradient(circle at 35% 30%, #ff7a4d, var(--host));
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
   touch-action: none;
 }
-.kick:active {
-  transform: scale(0.93);
+.btn:active {
+  transform: scale(0.92);
+}
+.kick {
+  right: max(22px, env(safe-area-inset-right));
+  width: 104px;
+  height: 104px;
+  font-size: 20px;
+  background: radial-gradient(circle at 35% 30%, #ff7a4d, #e63a1f);
+}
+.dash {
+  right: calc(max(22px, env(safe-area-inset-right)) + 118px);
+  bottom: max(46px, calc(env(safe-area-inset-bottom) + 12px));
+  width: 84px;
+  height: 84px;
+  font-size: 16px;
+  background: radial-gradient(circle at 35% 30%, #ffe08a, var(--accent));
+  color: #5a3d00;
 }
 
 /* ---------- overlays (lobby) ---------- */
