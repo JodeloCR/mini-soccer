@@ -3,6 +3,7 @@
 
 import { TEAM, type TeamDef } from "../config";
 import type { GameState, Role } from "../net/protocol";
+import { shareResult } from "./share";
 
 export class Hud {
   private el: HTMLElement;
@@ -102,21 +103,35 @@ export class Hud {
     this.lastPhase = "won";
     const iWon = s.winner === this.myRole;
     const score = `${s.score[s.winner!]} - ${s.score[other(s.winner!)]}`;
+    const buttons = `
+        <div class="btn-row">
+          <button class="big-btn" id="rematch">Revancha</button>
+          <button class="big-btn ghost" id="share">Compartir 📤</button>
+        </div>`;
     msg.className = `center-msg show win ${iWon ? "victory" : "defeat"}`;
     msg.innerHTML = iWon
       ? `
         <div class="win-emoji">🎉🏆</div>
         <div class="win-title">¡GANASTE!</div>
         <div class="win-line">Le toca a tu amigo invitar!</div>
-        <div class="win-sub">${this.teamName(s.winner)} · ${score}</div>
-        <button class="big-btn" id="rematch">Revancha</button>`
+        <div class="win-sub">${this.teamName(s.winner)} · ${score}</div>${buttons}`
       : `
         <div class="win-emoji">💸🧾</div>
         <div class="win-title">¡Perdiste!</div>
         <div class="win-line">Te toca pagar la cuenta!</div>
-        <div class="win-sub">${this.teamName(s.winner)} ganó ${score}</div>
-        <button class="big-btn" id="rematch">Revancha</button>`;
+        <div class="win-sub">${this.teamName(s.winner)} ganó ${score}</div>${buttons}`;
     (msg.querySelector("#rematch") as HTMLElement).onclick = () => this.onRematch();
+    (msg.querySelector("#share") as HTMLElement).onclick = () => {
+      const me = this.myRole;
+      const op = other(me);
+      void shareResult({
+        iWon,
+        myTeam: this.teams[me],
+        oppTeam: this.teams[op],
+        myScore: s.score[me],
+        oppScore: s.score[op],
+      });
+    };
   }
 
   private flashGoal() {
