@@ -19,6 +19,7 @@ export function createState(): GameState {
     score: { host: 0, guest: 0 },
     winner: null,
     scorer: null,
+    ack: 0,
   };
   resetPositions(s);
   return s;

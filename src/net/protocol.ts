@@ -39,6 +39,7 @@ export interface GameState {
   score: { host: number; guest: number };
   winner: Role | null;
   scorer: Role | null; // who scored the most recent goal (for celebration)
+  ack: number; // last guest input seq the host has applied (for client reconciliation)
 }
 
 // ---- client <-> server (signaling + relay) ----
@@ -57,7 +58,7 @@ export type ServerMsg =
 
 // ---- peer <-> peer (relayed via server, or sent over WebRTC datachannel) ----
 export type PeerMsg =
-  | { t: "input"; input: Input }
+  | { t: "input"; input: Input; seq: number }
   | { t: "snapshot"; state: GameState }
   | { t: "rtc"; data: RtcSignal }
   | { t: "pick"; teamId: string } // guest -> host: requested team

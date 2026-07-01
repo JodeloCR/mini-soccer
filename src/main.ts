@@ -38,29 +38,18 @@ let started = false;
 const state = createState();
 let guestInput: Input = { ...DEFAULT_INPUT };
 
-// guest-side snapshot interpolation + local prediction of own player
+// guest-side snapshot interpolation + client-side prediction w/ server reconciliation
 const buffer = new SnapshotBuffer();
-let lastInputSent = 0;
-let predicted: Player | null = null; // guest's locally-predicted player
 
-// Reconcile the predicted player against an authoritative snapshot: adopt its
-// velocity/cooldowns, snap on big desync (collision), otherwise ease the error
-// out so the player never rubber-bands.
-function reconcile(pred: Player, auth: Player) {
-  pred.vx = auth.vx;
-  pred.vy = auth.vy;
-  pred.dashCd = auth.dashCd;
-  pred.kickCd = auth.kickCd;
-  const ex = auth.x - pred.x;
-  const ey = auth.y - pred.y;
-  if (Math.hypot(ex, ey) > 1.2) {
-    pred.x = auth.x;
-    pred.y = auth.y;
-  } else {
-    pred.x += ex * 0.3;
-    pred.y += ey * 0.3;
-  }
-}
+// host: last guest input seq applied (echoed back in state.ack)
+let lastGuestSeq = 0;
+
+// guest: input sequence + un-acked history replayed on top of the authoritative
+// state each frame (standard prediction+reconciliation, no rubber-banding)
+let inputSeq = 0;
+const history: { seq: number; input: Input; dt: number }[] = [];
+let authGuest: Player | null = null; // last authoritative guest state
+let authAck = 0; // seq the host had applied at that state
 
 // chosen teams (synced; host is authoritative). null = not picked yet.
 const teams: { host: string | null; guest: string | null } = { host: null, guest: null };
@@ -79,10 +68,13 @@ const transport = new Transport({
   onPeerMsg: (m) => {
     if (m.t === "input" && role === "host") {
       guestInput = m.input;
+      if (typeof m.seq === "number") lastGuestSeq = m.seq;
     } else if (m.t === "snapshot" && role === "guest") {
       buffer.push(m.state, performance.now());
-      if (!predicted) predicted = { ...m.state.players.guest };
-      else reconcile(predicted, m.state.players.guest);
+      authGuest = m.state.players.guest;
+      authAck = m.state.ack;
+      // drop inputs the host has already applied
+      while (history.length && history[0].seq <= authAck) history.shift();
       startMatch();
     } else if (m.t === "pick" && role === "host") {
       // guest requested a team; accept only if it differs from host's
@@ -167,25 +159,30 @@ function frame(now: number) {
       acc -= PHYS.dt;
       ticks++;
     }
-    if (ticks > 0) transport.send({ t: "snapshot", state });
+    if (ticks > 0) {
+      state.ack = lastGuestSeq; // tell the guest which of its inputs we've applied
+      transport.send({ t: "snapshot", state });
+    }
     scene.apply(state);
     hud.update(state);
     cheerOnGoal(state.score.host + state.score.guest);
   } else if (started && role === "guest") {
     const inp = controls.getInput();
-    if (now - lastInputSent > 1000 / PHYS.tickHz) {
-      transport.send({ t: "input", input: inp });
-      lastInputSent = now;
-    }
+    inputSeq++;
+    history.push({ seq: inputSeq, input: inp, dt: dtReal });
+    if (history.length > 240) history.shift();
+    transport.send({ t: "input", input: inp, seq: inputSeq });
+
     const sampled = buffer.sample(now);
     const latest = buffer.latest();
-    // predict own player locally so movement feels instant (only while playing)
-    if (predicted && latest?.phase === "playing") movePlayer(predicted, inp, dtReal);
     if (sampled) {
-      const guest =
-        predicted && latest?.phase === "playing"
-          ? { ...predicted, kicking: sampled.players.guest.kicking }
-          : sampled.players.guest;
+      let guest = sampled.players.guest;
+      // predict: replay all un-acked inputs on top of the authoritative state
+      if (authGuest && latest?.phase === "playing") {
+        const pred: Player = { ...authGuest };
+        for (const h of history) if (h.seq > authAck) movePlayer(pred, h.input, h.dt);
+        guest = { ...pred, kicking: sampled.players.guest.kicking };
+      }
       scene.apply({ ...sampled, players: { host: sampled.players.host, guest } });
     }
     if (latest) {
