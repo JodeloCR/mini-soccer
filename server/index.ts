@@ -20,7 +20,18 @@ app.get("/healthz", (_req, res) => res.send("ok"));
 // connectivity on strict NAT, not for speed. iceTransportPolicy stays "all" so
 // direct P2P is always preferred and TURN is a last-resort fallback.
 app.get("/ice", (_req, res) => {
-  const iceServers: RTCIceServer[] = [{ urls: "stun:stun.l.google.com:19302" }];
+  // Several STUN servers → more candidate paths → direct P2P succeeds on more
+  // networks (not just same-WiFi) without ever needing a relay.
+  const iceServers: RTCIceServer[] = [
+    {
+      urls: [
+        "stun:stun.l.google.com:19302",
+        "stun:stun1.l.google.com:19302",
+        "stun:stun2.l.google.com:19302",
+        "stun:stun.cloudflare.com:3478",
+      ],
+    },
+  ];
   const { TURN_URL, TURN_USER, TURN_PASS } = process.env;
   if (TURN_URL && TURN_USER && TURN_PASS) {
     iceServers.push({ urls: TURN_URL.split(","), username: TURN_USER, credential: TURN_PASS });

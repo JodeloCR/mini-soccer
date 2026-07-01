@@ -101,7 +101,9 @@ export class Transport {
       const r = await fetch("/ice");
       this.iceServers = (await r.json()).iceServers as RTCIceServer[];
     } catch {
-      this.iceServers = [{ urls: "stun:stun.l.google.com:19302" }];
+      this.iceServers = [
+        { urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] },
+      ];
     }
     return this.iceServers;
   }
@@ -109,7 +111,10 @@ export class Transport {
   // ---- WebRTC upgrade (best effort) ----
   private async startRtc(initiator: boolean) {
     if (this.pc) return;
-    const pc = new RTCPeerConnection({ iceServers: await this.getIceServers() });
+    const pc = new RTCPeerConnection({
+      iceServers: await this.getIceServers(),
+      iceCandidatePoolSize: 4, // pre-gather candidates -> faster connect
+    });
     this.pc = pc;
 
     pc.onicecandidate = (e) => {
