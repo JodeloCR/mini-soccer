@@ -16,6 +16,14 @@ import { DEFAULT_INPUT, type Input, type Player, type Role } from "./net/protoco
 
 const app = document.getElementById("app")!;
 
+// printable QR sticker sheet: /?stickers=6 (no game boot)
+const stickersParam = new URLSearchParams(location.search).get("stickers");
+if (stickersParam !== null) {
+  const n = Math.min(12, Math.max(1, parseInt(stickersParam, 10) || 6));
+  void import("./ui/stickers").then((m) => m.renderStickers(app, n));
+  throw new Error("stickers mode"); // stop game boot; page is the sticker sheet
+}
+
 let scene: Scene3D;
 try {
   scene = new Scene3D(app);

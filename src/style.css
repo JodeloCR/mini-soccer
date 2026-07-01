@@ -415,6 +415,77 @@ body {
   box-shadow: none;
 }
 
+.upsell {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--accent);
+  margin: -8px 0 14px;
+}
+
+/* ---------- printable QR stickers (/?stickers=6) ---------- */
+body.print-mode {
+  overflow: auto;
+  touch-action: auto;
+  background: #fff;
+}
+.stickers-page {
+  background: #fff;
+  color: #111;
+  min-height: 100vh;
+  padding: 20px;
+}
+.stickers-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 18px;
+  font-family: system-ui, sans-serif;
+}
+.stickers-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+.sticker {
+  border: 2px dashed #b5b5b5;
+  border-radius: 14px;
+  padding: 16px 10px;
+  text-align: center;
+  background: #fff;
+  break-inside: avoid;
+}
+.sticker .s-brand {
+  font-size: 26px;
+  font-weight: 900;
+  color: #b3541e;
+}
+.sticker .s-tag {
+  font-size: 15px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+.sticker canvas {
+  width: 150px !important;
+  height: 150px !important;
+}
+.sticker .s-hook {
+  font-size: 14px;
+  font-weight: 800;
+  margin-top: 8px;
+}
+.sticker .s-sub {
+  font-size: 12px;
+  color: #555;
+}
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  .stickers-page {
+    padding: 0;
+  }
+}
+
 /* rotate-to-landscape hint (portrait phones) */
 .rotate {
   display: none;

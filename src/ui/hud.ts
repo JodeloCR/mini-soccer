@@ -114,12 +114,14 @@ export class Hud {
         <div class="win-emoji">🎉🏆</div>
         <div class="win-title">¡GANASTE!</div>
         <div class="win-line">Le toca a tu amigo invitar!</div>
-        <div class="win-sub">${this.teamName(s.winner)} · ${score}</div>${buttons}`
+        <div class="win-sub">${this.teamName(s.winner)} · ${score}</div>
+        <div class="upsell">🌮 Celebrá pidiendo ${this.teamName(s.winner)}</div>${buttons}`
       : `
         <div class="win-emoji">💸🧾</div>
         <div class="win-title">¡Perdiste!</div>
         <div class="win-line">Te toca pagar la cuenta!</div>
-        <div class="win-sub">${this.teamName(s.winner)} ganó ${score}</div>${buttons}`;
+        <div class="win-sub">${this.teamName(s.winner)} ganó ${score}</div>
+        <div class="upsell">🌮 Consolate con ${this.teamName(other(s.winner!))}</div>${buttons}`;
     (msg.querySelector("#rematch") as HTMLElement).onclick = () => this.onRematch();
     (msg.querySelector("#share") as HTMLElement).onclick = () => {
       const me = this.myRole;

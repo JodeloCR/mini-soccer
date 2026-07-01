@@ -1,0 +1,13 @@
+import puppeteer from "puppeteer";
+const b = await puppeteer.launch({ headless: "new", args: ["--no-sandbox"] });
+const p = await b.newPage();
+await p.setViewport({ width: 900, height: 700, deviceScaleFactor: 2 });
+const errs = [];
+p.on("pageerror", (e) => { if (!/stickers mode/.test(e.message)) errs.push(e.message); });
+await p.goto("http://localhost:5173/?stickers=6", { waitUntil: "networkidle0" });
+await new Promise((r) => setTimeout(r, 800));
+const cards = await p.$$eval(".sticker", (els) => els.length);
+await p.screenshot({ path: (process.env.TEMP || ".") + "/12-stickers.png" });
+console.log("cards:", cards, "errors:", errs.length ? errs.join("; ") : "none");
+await b.close();
+process.exit(cards === 6 && !errs.length ? 0 : 1);
