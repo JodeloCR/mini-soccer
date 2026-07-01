@@ -11,8 +11,8 @@ import { createState, step, startCountdown, resetMatch, movePlayer } from "./gam
 import { Transport } from "./net/transport";
 import { Lobby } from "./ui/lobby";
 import { Hud } from "./ui/hud";
-import { PHYS, TEAM, teamById } from "./config";
-import { DEFAULT_INPUT, type Input, type Player, type Role } from "./net/protocol";
+import { BRAND, PHYS, RULES, TEAM, teamById } from "./config";
+import { DEFAULT_INPUT, type GameState, type Input, type Player, type Role } from "./net/protocol";
 
 const app = document.getElementById("app")!;
 
@@ -22,6 +22,13 @@ if (stickersParam !== null) {
   const n = Math.min(12, Math.max(1, parseInt(stickersParam, 10) || 6));
   void import("./ui/stickers").then((m) => m.renderStickers(app, n));
   throw new Error("stickers mode"); // stop game boot; page is the sticker sheet
+}
+
+// admin panel: /?admin=KEY (no game boot)
+const adminParam = new URLSearchParams(location.search).get("admin");
+if (adminParam !== null) {
+  void import("./ui/admin").then((m) => m.renderAdmin(app, adminParam));
+  throw new Error("admin mode");
 }
 
 let scene: Scene3D;
@@ -49,6 +56,21 @@ let started = false;
 // host-authoritative state
 const state = createState();
 let guestInput: Input = { ...DEFAULT_INPUT };
+let matchReported = false; // one analytics ping per finished match
+
+// attract mode: AI-vs-AI demo running behind the lobby until a match starts
+const demoState = createState();
+let demoAcc = 0;
+
+function demoAI(s: GameState, r: Role): Input {
+  const p = s.players[r];
+  const b = s.ball;
+  const dir = r === "host" ? 1 : -1;
+  const dx = b.x - dir * 0.55 - p.x;
+  const dy = b.y - p.y;
+  const d = Math.hypot(dx, dy) || 1;
+  return { move: { x: dx / d, y: dy / d }, dash: false, kick: Math.hypot(b.x - p.x, b.y - p.y) < 1.2 };
+}
 
 // guest-side snapshot interpolation + client-side prediction w/ server reconciliation
 const buffer = new SnapshotBuffer();
@@ -173,6 +195,17 @@ function frame(now: number) {
     scene.apply(state);
     hud.update(state);
     fx.update(state);
+    // analytics: report each finished match once (fire-and-forget)
+    if (state.phase === "won" && !matchReported) {
+      matchReported = true;
+      void fetch("/stats/match", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ h: state.score.host, g: state.score.guest }),
+      }).catch(() => {});
+    } else if (state.phase !== "won") {
+      matchReported = false;
+    }
   } else if (started && role === "guest") {
     const inp = controls.getInput();
     inputSeq++;
@@ -196,6 +229,18 @@ function frame(now: number) {
       hud.update(latest);
       fx.update(latest);
     }
+  } else if (!started) {
+    // attract mode: silent AI demo keeps the pitch alive behind the lobby
+    demoAcc += dtReal;
+    let t = 0;
+    while (demoAcc >= PHYS.dt && t < 5) {
+      if (demoState.phase === "waiting") startCountdown(demoState);
+      if (demoState.phase === "won") resetMatch(demoState);
+      step(demoState, demoAI(demoState, "host"), demoAI(demoState, "guest"), PHYS.dt);
+      demoAcc -= PHYS.dt;
+      t++;
+    }
+    scene.apply(demoState);
   }
 
   scene.render();
@@ -205,6 +250,14 @@ requestAnimationFrame(frame);
 
 // ---- boot ----
 (async () => {
+  // merge runtime config from the server over compiled defaults (admin panel edits)
+  try {
+    const o = await (await fetch("/config")).json();
+    if (o.brand) Object.assign(BRAND, o.brand);
+    if (Number.isInteger(o.winGoals)) RULES.winGoals = o.winGoals;
+  } catch {
+    /* server unreachable or no overrides — defaults stand */
+  }
   try {
     await transport.connect();
   } catch {

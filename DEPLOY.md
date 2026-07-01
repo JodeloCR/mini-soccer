@@ -61,6 +61,14 @@ Abrí la URL en el teléfono → **Crear partida** → el otro escanea el QR. Li
 - Colores/equipos/reglas: `src/config.ts` (`BRAND`, `TEAMS`, `RULES.winGoals`).
 - Tras cambios: `git push` → Render redeploya solo (autoDeploy).
 
+### Herramientas incluidas (sin código)
+- **Panel admin:** `TU_URL/?admin=CLAVE` — editar nombre/tagline/color/goles para
+  ganar + ver partidas y goles totales. La clave es la env var `ADMIN_KEY` del
+  servidor (default `huateque123` — ¡cambiala en producción!). Nota: en hosting
+  con disco efímero (Render free) los cambios se pierden al redeployar.
+- **Stickers QR de mesa:** `TU_URL/?stickers=6` — hoja imprimible (imprimir → PDF).
+- **Compartir resultado:** botón en la pantalla final del juego (marketing gratis).
+
 ---
 
 ## Checklist de release

@@ -6,14 +6,69 @@ import { createServer } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { fileURLToPath } from "url";
 import path from "path";
+import fs from "fs";
 import type { ClientMsg, Role, ServerMsg } from "../src/net/protocol";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT) || 8080;
 const distDir = path.resolve(__dirname, "../dist");
+const ADMIN_KEY = process.env.ADMIN_KEY || "huateque123";
+
+// Runtime config overrides + usage stats, persisted to a small JSON file.
+// NOTE: on hosts with ephemeral disks (Render free) this resets on redeploy.
+const dataFile = path.resolve(__dirname, "data.json");
+interface AppData {
+  overrides: { brand?: Record<string, string>; winGoals?: number };
+  stats: { matches: number; goals: number };
+}
+let data: AppData = { overrides: {}, stats: { matches: 0, goals: 0 } };
+try {
+  data = { ...data, ...JSON.parse(fs.readFileSync(dataFile, "utf8")) };
+} catch {
+  /* first boot — defaults */
+}
+function saveData() {
+  fs.writeFile(dataFile, JSON.stringify(data), () => {});
+}
 
 const app = express();
+app.use(express.json());
 app.get("/healthz", (_req, res) => res.send("ok"));
+
+// public runtime config (client merges over compiled defaults at boot)
+app.get("/config", (_req, res) => res.json(data.overrides));
+
+// admin: update config (guarded by key)
+app.post("/config", (req, res) => {
+  if (req.query.key !== ADMIN_KEY) return res.status(403).json({ error: "bad key" });
+  const b = req.body ?? {};
+  if (b.brand && typeof b.brand === "object") {
+    data.overrides.brand = { ...data.overrides.brand };
+    for (const k of ["name", "tagline", "accent", "primary"]) {
+      if (typeof b.brand[k] === "string" && b.brand[k].length <= 60) data.overrides.brand[k] = b.brand[k];
+    }
+  }
+  const wg = Number(b.winGoals);
+  if (Number.isInteger(wg) && wg >= 1 && wg <= 20) data.overrides.winGoals = wg;
+  saveData();
+  res.json(data.overrides);
+});
+
+// match analytics: host reports a finished match; admin reads totals
+app.post("/stats/match", (req, res) => {
+  const h = Number(req.body?.h);
+  const g = Number(req.body?.g);
+  if (Number.isFinite(h) && Number.isFinite(g) && h + g <= 60) {
+    data.stats.matches++;
+    data.stats.goals += h + g;
+    saveData();
+  }
+  res.json({ ok: true });
+});
+app.get("/stats", (req, res) => {
+  if (req.query.key !== ADMIN_KEY) return res.status(403).json({ error: "bad key" });
+  res.json(data.stats);
+});
 
 // WebRTC ICE config. STUN is always included (enables direct P2P). A TURN relay
 // is added only if configured via env (TURN_URL/TURN_USER/TURN_PASS) — needed for

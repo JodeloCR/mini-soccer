@@ -9,6 +9,8 @@ export default defineConfig({
     proxy: {
       "/ws": { target: "ws://localhost:8080", ws: true },
       "/ice": { target: "http://localhost:8080" },
+      "/config": { target: "http://localhost:8080" },
+      "/stats": { target: "http://localhost:8080" },
     },
   },
   build: {
