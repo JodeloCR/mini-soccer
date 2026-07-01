@@ -23,6 +23,7 @@ export class Transport {
   private pc?: RTCPeerConnection;
   private dc?: RTCDataChannel;
   private p2p = false;
+  private iceServers?: RTCIceServer[];
 
   constructor(private h: Handlers) {}
 
@@ -72,7 +73,7 @@ export class Transport {
         break;
       case "peer-joined":
         this.h.onPeerJoined?.();
-        this.startRtc(true); // host initiates the datachannel
+        void this.startRtc(true); // host initiates the datachannel
         break;
       case "peer-left":
         this.h.onPeerLeft?.();
@@ -94,12 +95,21 @@ export class Transport {
     this.h.onPeerMsg?.(m);
   }
 
+  private async getIceServers(): Promise<RTCIceServer[]> {
+    if (this.iceServers) return this.iceServers;
+    try {
+      const r = await fetch("/ice");
+      this.iceServers = (await r.json()).iceServers as RTCIceServer[];
+    } catch {
+      this.iceServers = [{ urls: "stun:stun.l.google.com:19302" }];
+    }
+    return this.iceServers;
+  }
+
   // ---- WebRTC upgrade (best effort) ----
-  private startRtc(initiator: boolean) {
+  private async startRtc(initiator: boolean) {
     if (this.pc) return;
-    const pc = new RTCPeerConnection({
-      iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
-    });
+    const pc = new RTCPeerConnection({ iceServers: await this.getIceServers() });
     this.pc = pc;
 
     pc.onicecandidate = (e) => {
@@ -137,7 +147,7 @@ export class Transport {
   }
 
   private async onRtcSignal(sig: RtcSignal) {
-    if (!this.pc) this.startRtc(false);
+    if (!this.pc) await this.startRtc(false);
     const pc = this.pc!;
     if (sig.kind === "offer") {
       await pc.setRemoteDescription({ type: "offer", sdp: sig.sdp });

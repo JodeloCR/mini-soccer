@@ -14,6 +14,19 @@ const distDir = path.resolve(__dirname, "../dist");
 
 const app = express();
 app.get("/healthz", (_req, res) => res.send("ok"));
+
+// WebRTC ICE config. STUN is always included (enables direct P2P). A TURN relay
+// is added only if configured via env (TURN_URL/TURN_USER/TURN_PASS) — needed for
+// connectivity on strict NAT, not for speed. iceTransportPolicy stays "all" so
+// direct P2P is always preferred and TURN is a last-resort fallback.
+app.get("/ice", (_req, res) => {
+  const iceServers: RTCIceServer[] = [{ urls: "stun:stun.l.google.com:19302" }];
+  const { TURN_URL, TURN_USER, TURN_PASS } = process.env;
+  if (TURN_URL && TURN_USER && TURN_PASS) {
+    iceServers.push({ urls: TURN_URL.split(","), username: TURN_USER, credential: TURN_PASS });
+  }
+  res.json({ iceServers });
+});
 app.use(express.static(distDir));
 // SPA fallback so /?room=ABCD loads index.html
 app.get("*", (_req, res) => res.sendFile(path.join(distDir, "index.html")));

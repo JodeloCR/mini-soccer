@@ -8,6 +8,7 @@ export default defineConfig({
     host: true, // expose on LAN for phone testing
     proxy: {
       "/ws": { target: "ws://localhost:8080", ws: true },
+      "/ice": { target: "http://localhost:8080" },
     },
   },
   build: {
