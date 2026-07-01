@@ -5,12 +5,12 @@
 import { Scene3D } from "./game/scene";
 import { Controls } from "./game/input";
 import { SnapshotBuffer } from "./game/render";
-import { createState, step, startCountdown, resetMatch } from "./game/engine";
+import { createState, step, startCountdown, resetMatch, movePlayer } from "./game/engine";
 import { Transport } from "./net/transport";
 import { Lobby } from "./ui/lobby";
 import { Hud } from "./ui/hud";
 import { PHYS, TEAM, teamById } from "./config";
-import { DEFAULT_INPUT, type Input, type Role } from "./net/protocol";
+import { DEFAULT_INPUT, type Input, type Player, type Role } from "./net/protocol";
 
 const app = document.getElementById("app")!;
 
@@ -38,9 +38,29 @@ let started = false;
 const state = createState();
 let guestInput: Input = { ...DEFAULT_INPUT };
 
-// guest-side snapshot interpolation
+// guest-side snapshot interpolation + local prediction of own player
 const buffer = new SnapshotBuffer();
 let lastInputSent = 0;
+let predicted: Player | null = null; // guest's locally-predicted player
+
+// Reconcile the predicted player against an authoritative snapshot: adopt its
+// velocity/cooldowns, snap on big desync (collision), otherwise ease the error
+// out so the player never rubber-bands.
+function reconcile(pred: Player, auth: Player) {
+  pred.vx = auth.vx;
+  pred.vy = auth.vy;
+  pred.dashCd = auth.dashCd;
+  pred.kickCd = auth.kickCd;
+  const ex = auth.x - pred.x;
+  const ey = auth.y - pred.y;
+  if (Math.hypot(ex, ey) > 1.2) {
+    pred.x = auth.x;
+    pred.y = auth.y;
+  } else {
+    pred.x += ex * 0.3;
+    pred.y += ey * 0.3;
+  }
+}
 
 // chosen teams (synced; host is authoritative). null = not picked yet.
 const teams: { host: string | null; guest: string | null } = { host: null, guest: null };
@@ -61,6 +81,8 @@ const transport = new Transport({
       guestInput = m.input;
     } else if (m.t === "snapshot" && role === "guest") {
       buffer.push(m.state, performance.now());
+      if (!predicted) predicted = { ...m.state.players.guest };
+      else reconcile(predicted, m.state.players.guest);
       startMatch();
     } else if (m.t === "pick" && role === "host") {
       // guest requested a team; accept only if it differs from host's
@@ -150,13 +172,22 @@ function frame(now: number) {
     hud.update(state);
     cheerOnGoal(state.score.host + state.score.guest);
   } else if (started && role === "guest") {
+    const inp = controls.getInput();
     if (now - lastInputSent > 1000 / PHYS.tickHz) {
-      transport.send({ t: "input", input: controls.getInput() });
+      transport.send({ t: "input", input: inp });
       lastInputSent = now;
     }
     const sampled = buffer.sample(now);
     const latest = buffer.latest();
-    if (sampled) scene.apply(sampled);
+    // predict own player locally so movement feels instant (only while playing)
+    if (predicted && latest?.phase === "playing") movePlayer(predicted, inp, dtReal);
+    if (sampled) {
+      const guest =
+        predicted && latest?.phase === "playing"
+          ? { ...predicted, kicking: sampled.players.guest.kicking }
+          : sampled.players.guest;
+      scene.apply({ ...sampled, players: { host: sampled.players.host, guest } });
+    }
     if (latest) {
       hud.update(latest);
       cheerOnGoal(latest.score.host + latest.score.guest);

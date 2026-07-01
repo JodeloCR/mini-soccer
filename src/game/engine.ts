@@ -105,7 +105,9 @@ export function step(s: GameState, hostIn: Input, guestIn: Input, dt: number) {
   }
 }
 
-function movePlayer(p: Player, inp: Input, dt: number) {
+// Movement + dash integration only (no collisions). Exported so the guest can
+// predict its own player locally between snapshots.
+export function movePlayer(p: Player, inp: Input, dt: number) {
   p.dashing = false;
   if (p.dashCd > 0) p.dashCd -= dt;
 

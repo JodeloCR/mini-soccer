@@ -4,7 +4,7 @@
 
 import type { Body, GameState } from "../net/protocol";
 
-const RENDER_DELAY = 90; // ms behind the latest snapshot
+const RENDER_DELAY = 65; // ms behind the latest snapshot (jitter buffer)
 
 export class SnapshotBuffer {
   private buf: { t: number; s: GameState }[] = [];
