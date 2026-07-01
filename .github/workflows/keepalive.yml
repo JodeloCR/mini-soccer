@@ -1,0 +1,25 @@
+name: keepalive
+
+# Pings the Render app so the free tier never sleeps (no cold start for players).
+# NOTE: GitHub's scheduled runs can be delayed under load. For rock-solid uptime,
+# also add a free monitor at cron-job.org or uptimerobot.com hitting /healthz.
+
+on:
+  schedule:
+    - cron: "*/10 * * * *" # every 10 min (Render sleeps after ~15 min idle)
+  workflow_dispatch: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping health endpoint
+        run: |
+          URL="https://huateque-mini-futbol.onrender.com/healthz"
+          for i in 1 2 3; do
+            code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 90 "$URL" || echo "000")
+            echo "ping $i -> $code"
+            [ "$code" = "200" ] && exit 0
+            sleep 15
+          done
+          echo "warning: app did not return 200 (may be waking up)"
