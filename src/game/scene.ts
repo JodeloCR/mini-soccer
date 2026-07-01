@@ -16,6 +16,16 @@ interface PlayerVis {
   ringMat: THREE.MeshBasicMaterial;
   ringLife: number; // kick FX (1 -> 0)
   squash: number; // dash FX (1 -> 0)
+  angle: number; // smoothed facing angle
+}
+
+interface Particle {
+  mesh: THREE.Mesh;
+  mat: THREE.MeshBasicMaterial;
+  vx: number;
+  vy: number;
+  vz: number;
+  life: number;
 }
 
 interface Egg {
@@ -36,6 +46,15 @@ export class Scene3D {
   private prevBall = { x: 0, y: 0 };
   private cheerT = 0;
   private last = performance.now();
+  // juice state
+  private shakeI = 0;
+  private fovP = 0;
+  private basePos = new THREE.Vector3(0, 15.5, 9.5);
+  private ballV = { x: 0, y: 0 };
+  private trail: { mesh: THREE.Mesh; mat: THREE.MeshBasicMaterial; life: number }[] = [];
+  private trailIdx = 0;
+  private parts: Particle[] = [];
+  private partIdx = 0;
 
   constructor(private container: HTMLElement) {
     const r = new THREE.WebGLRenderer({ antialias: true });
@@ -59,9 +78,10 @@ export class Scene3D {
     this.addEggs();
     this.ball = this.makeBall();
     this.scene.add(this.ball);
-    this.host = this.makePlayer(TEAM.host.color);
-    this.guest = this.makePlayer(TEAM.guest.color);
+    this.host = this.makePlayer(TEAM.host.color, Math.PI / 2); // faces +x
+    this.guest = this.makePlayer(TEAM.guest.color, -Math.PI / 2); // faces -x
     this.scene.add(this.host.group, this.guest.group);
+    this.makePools();
 
     this.resize();
     addEventListener("resize", () => this.resize());
@@ -213,7 +233,7 @@ export class Scene3D {
     return ball;
   }
 
-  private makePlayer(color: string): PlayerVis {
+  private makePlayer(color: string, initAngle: number): PlayerVis {
     const g = new THREE.Group();
     const bodyMat = new THREE.MeshStandardMaterial({ color, roughness: 0.5 });
     const body = new THREE.Mesh(
@@ -228,9 +248,17 @@ export class Scene3D {
     );
     head.position.y = 0.86;
     head.castShadow = true;
+    // mustache on the face — shows facing direction + fits the theme
+    const stache = new THREE.Mesh(
+      new THREE.TorusGeometry(0.11, 0.035, 6, 10, Math.PI),
+      new THREE.MeshStandardMaterial({ color: "#2a1a10", roughness: 0.8 }),
+    );
+    stache.rotation.z = Math.PI; // droop downward
+    stache.position.set(0, 0.8, 0.27);
     const som = makeSombrero(color, 1);
     som.position.y = 1.04;
-    g.add(body, head, som);
+    g.add(body, head, stache, som);
+    g.rotation.y = initAngle;
 
     // ground ring used for the kick FX
     const ringMat = new THREE.MeshBasicMaterial({ color: "#fff0b3", transparent: true, opacity: 0 });
@@ -239,7 +267,42 @@ export class Scene3D {
     ring.position.y = 0.04;
     g.add(ring);
 
-    return { group: g, bodyMat, ring, ringMat, ringLife: 0, squash: 0 };
+    return { group: g, bodyMat, ring, ringMat, ringLife: 0, squash: 0, angle: initAngle };
+  }
+
+  /** Fixed pools for ball trail + kick particles (mobile-friendly, no allocs per frame). */
+  private makePools() {
+    const trailGeo = new THREE.SphereGeometry(0.13, 8, 6);
+    for (let i = 0; i < 12; i++) {
+      const mat = new THREE.MeshBasicMaterial({ color: "#ffffff", transparent: true, opacity: 0 });
+      const mesh = new THREE.Mesh(trailGeo, mat);
+      mesh.visible = false;
+      this.trail.push({ mesh, mat, life: 0 });
+      this.scene.add(mesh);
+    }
+    const partGeo = new THREE.BoxGeometry(0.09, 0.09, 0.09);
+    for (let i = 0; i < 24; i++) {
+      const mat = new THREE.MeshBasicMaterial({ color: "#ffe08a", transparent: true, opacity: 0 });
+      const mesh = new THREE.Mesh(partGeo, mat);
+      mesh.visible = false;
+      this.parts.push({ mesh, mat, vx: 0, vy: 0, vz: 0, life: 0 });
+      this.scene.add(mesh);
+    }
+  }
+
+  /** Radial burst of sparks at a pitch position (kick contact). */
+  private burst(x: number, y: number) {
+    for (let i = 0; i < 10; i++) {
+      const p = this.parts[this.partIdx++ % this.parts.length];
+      const a = Math.random() * Math.PI * 2;
+      const sp = 1.5 + Math.random() * 2.5;
+      p.vx = Math.cos(a) * sp;
+      p.vz = Math.sin(a) * sp;
+      p.vy = 2 + Math.random() * 2.5;
+      p.life = 0.5 + Math.random() * 0.3;
+      p.mesh.position.set(x, 0.3, -y);
+      p.mesh.visible = true;
+    }
   }
 
   /** Recolor the two players from chosen team colors. */
@@ -253,6 +316,16 @@ export class Scene3D {
     this.cheerT = 1.3;
   }
 
+  /** Camera shake, additive; decays in render(). */
+  shake(intensity: number) {
+    this.shakeI = Math.min(1, this.shakeI + intensity);
+  }
+
+  /** Quick zoom-in punch (fov dip), decays in render(). */
+  fovPunch() {
+    this.fovP = 1;
+  }
+
   apply(s: GameState) {
     setPos(this.ball, s.ball.x, s.ball.y, PHYS.ballRadius);
     const dx = s.ball.x - this.prevBall.x;
@@ -263,6 +336,7 @@ export class Scene3D {
       this.ball.rotateOnWorldAxis(new THREE.Vector3(1, 0, 0), -dy * k * 0.5);
     }
     this.prevBall = { x: s.ball.x, y: s.ball.y };
+    this.ballV = { x: s.ball.vx, y: s.ball.vy };
 
     this.applyPlayer(this.host, s.players.host);
     this.applyPlayer(this.guest, s.players.guest);
@@ -270,8 +344,16 @@ export class Scene3D {
 
   private applyPlayer(vis: PlayerVis, p: Player) {
     setPos(vis.group, p.x, p.y, 0);
-    if (p.kicking) vis.ringLife = 1;
+    if (p.kicking) {
+      vis.ringLife = 1;
+      this.burst(p.x, p.y);
+    }
     if (p.dashing) vis.squash = 1;
+    // face movement direction (world +z when angle 0; sim y maps to -z)
+    if (Math.hypot(p.vx, p.vy) > 0.8) {
+      vis.angle = lerpAngle(vis.angle, Math.atan2(p.vx, -p.vy), 0.22);
+      vis.group.rotation.y = vis.angle;
+    }
   }
 
   render() {
@@ -303,6 +385,53 @@ export class Scene3D {
       vis.group.scale.set(1 + vis.squash * 0.18, 1 - vis.squash * 0.22, 1 + vis.squash * 0.18);
     }
 
+    // ball trail (only when the ball is fast)
+    if (Math.hypot(this.ballV.x, this.ballV.y) > 7) {
+      const t = this.trail[this.trailIdx++ % this.trail.length];
+      t.mesh.position.copy(this.ball.position);
+      t.life = 1;
+      t.mesh.visible = true;
+    }
+    for (const t of this.trail) {
+      if (t.life > 0) {
+        t.life = Math.max(0, t.life - dt * 2.4);
+        t.mat.opacity = t.life * 0.4;
+        t.mesh.scale.setScalar(0.35 + t.life * 0.65);
+        if (t.life === 0) t.mesh.visible = false;
+      }
+    }
+
+    // kick spark particles
+    for (const p of this.parts) {
+      if (p.life > 0) {
+        p.life -= dt * 1.7;
+        p.vy -= 9 * dt;
+        p.mesh.position.x += p.vx * dt;
+        p.mesh.position.y += p.vy * dt;
+        p.mesh.position.z += p.vz * dt;
+        p.mesh.rotation.x += dt * 7;
+        p.mesh.rotation.z += dt * 5;
+        p.mat.opacity = Math.max(0, p.life);
+        if (p.life <= 0 || p.mesh.position.y < 0.02) {
+          p.life = 0;
+          p.mesh.visible = false;
+        }
+      }
+    }
+
+    // camera shake + fov punch (decay toward rest)
+    this.shakeI *= Math.exp(-6 * dt);
+    this.fovP *= Math.exp(-5 * dt);
+    const sh = this.shakeI * 0.35;
+    this.camera.position.set(
+      this.basePos.x + (Math.random() - 0.5) * sh,
+      this.basePos.y + (Math.random() - 0.5) * sh,
+      this.basePos.z + (Math.random() - 0.5) * sh,
+    );
+    this.camera.fov = 46 - this.fovP * 5;
+    this.camera.updateProjectionMatrix();
+    this.camera.lookAt(0, 0, 0);
+
     this.renderer.render(this.scene, this.camera);
   }
 
@@ -312,10 +441,19 @@ export class Scene3D {
     this.renderer.setSize(w, h, false);
     this.camera.aspect = w / h;
     const fit = Math.max(1, FIELD.W / FIELD.H / Math.max(0.6, w / h));
-    this.camera.position.set(0, 15.5 * fit, 9.5 * fit);
+    this.basePos.set(0, 15.5 * fit, 9.5 * fit);
+    this.camera.position.copy(this.basePos);
     this.camera.lookAt(0, 0, 0);
     this.camera.updateProjectionMatrix();
   }
+}
+
+// shortest-path angle interpolation (avoids spinning the long way around)
+function lerpAngle(a: number, b: number, t: number) {
+  let d = b - a;
+  while (d > Math.PI) d -= Math.PI * 2;
+  while (d < -Math.PI) d += Math.PI * 2;
+  return a + d * t;
 }
 
 // world mapping: sim (x, y) -> three (x, height, -y)

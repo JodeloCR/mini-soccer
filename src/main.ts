@@ -4,6 +4,8 @@
 
 import { Scene3D } from "./game/scene";
 import { Controls } from "./game/input";
+import { Sfx } from "./game/audio";
+import { FxDirector } from "./game/fx";
 import { SnapshotBuffer } from "./game/render";
 import { createState, step, startCountdown, resetMatch, movePlayer } from "./game/engine";
 import { Transport } from "./net/transport";
@@ -28,6 +30,8 @@ try {
 const controls = new Controls(app);
 const lobby = new Lobby(app);
 const hud = new Hud(app);
+const sfx = new Sfx();
+const fx = new FxDirector(sfx, scene);
 
 const roomParam = new URLSearchParams(location.search).get("room");
 
@@ -58,6 +62,7 @@ const transport = new Transport({
   onRole: (r, code) => {
     role = r;
     hud.setRole(r, requestRematch);
+    fx.setRole(r);
     if (r === "host") void lobby.showHostWaiting(code);
     else lobby.showSelect(pickTeam); // guest joined -> choose a team
   },
@@ -165,6 +170,7 @@ function frame(now: number) {
     }
     scene.apply(state);
     hud.update(state);
+    fx.update(state);
     cheerOnGoal(state.score.host + state.score.guest);
   } else if (started && role === "guest") {
     const inp = controls.getInput();
@@ -187,6 +193,7 @@ function frame(now: number) {
     }
     if (latest) {
       hud.update(latest);
+      fx.update(latest);
       cheerOnGoal(latest.score.host + latest.score.guest);
     }
   }
