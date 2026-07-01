@@ -12,3 +12,7 @@ services:
     envVars:
       - key: NODE_VERSION
         value: "20"
+      # puppeteer is a local dev/test tool only — never download Chromium (~150MB)
+      # during cloud builds; keeps deploys fast and inside free-tier limits
+      - key: PUPPETEER_SKIP_DOWNLOAD
+        value: "1"
