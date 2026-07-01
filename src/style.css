@@ -119,10 +119,25 @@ body {
 .center-msg.goal {
   font-size: 64px;
   color: var(--accent);
+  animation: goalpop 0.55s cubic-bezier(0.2, 2.4, 0.35, 1);
+}
+@keyframes goalpop {
+  0% {
+    transform: translate(-50%, -50%) scale(0.25) rotate(-6deg);
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1) rotate(0deg);
+  }
 }
 .center-msg.goal small {
   font-size: 22px;
   color: #fff;
+}
+.streakline {
+  font-size: 20px;
+  font-weight: 800;
+  color: #fff;
+  margin-top: 4px;
 }
 .center-msg.win {
   pointer-events: auto;

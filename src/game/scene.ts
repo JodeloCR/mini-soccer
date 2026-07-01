@@ -55,6 +55,13 @@ export class Scene3D {
   private trailIdx = 0;
   private parts: Particle[] = [];
   private partIdx = 0;
+  // goal celebration
+  private confettiPool: Particle[] = [];
+  private confettiIdx = 0;
+  private goalCamT = 0;
+  private goalCamTarget = new THREE.Vector3();
+  private nets: Record<"left" | "right", THREE.Mesh | null> = { left: null, right: null };
+  private netPulse = { left: 0, right: 0 };
 
   constructor(private container: HTMLElement) {
     const r = new THREE.WebGLRenderer({ antialias: true });
@@ -165,10 +172,11 @@ export class Scene3D {
       rail.rotation.x = Math.PI / 2;
       setPos(rail, sx * HW, 0, 0.92);
       this.scene.add(rail);
-      const net = new THREE.Mesh(new THREE.PlaneGeometry(FIELD.goalHalf * 2, 0.85), netMat);
+      const net = new THREE.Mesh(new THREE.PlaneGeometry(FIELD.goalHalf * 2, 0.85), netMat.clone());
       net.rotation.y = Math.PI / 2;
       setPos(net, sx * (HW + 0.45), 0, 0.42);
       this.scene.add(net);
+      this.nets[sx === 1 ? "right" : "left"] = net;
     }
   }
 
@@ -288,6 +296,44 @@ export class Scene3D {
       this.parts.push({ mesh, mat, vx: 0, vy: 0, vz: 0, life: 0 });
       this.scene.add(mesh);
     }
+    // confetti: flat colored quads, double-sided so they flicker while spinning
+    const confGeo = new THREE.PlaneGeometry(0.16, 0.09);
+    for (let i = 0; i < 40; i++) {
+      const mat = new THREE.MeshBasicMaterial({
+        color: "#ffffff",
+        transparent: true,
+        opacity: 0,
+        side: THREE.DoubleSide,
+      });
+      const mesh = new THREE.Mesh(confGeo, mat);
+      mesh.visible = false;
+      this.confettiPool.push({ mesh, mat, vx: 0, vy: 0, vz: 0, life: 0 });
+      this.scene.add(mesh);
+    }
+  }
+
+  /** Goal celebration: confetti in the scorer's color at their goal, net pulse, goal cam. */
+  goalFx(scorer: "host" | "guest") {
+    const sx = scorer === "host" ? 1 : -1; // host scores into the +x goal
+    const teamColor = (scorer === "host" ? this.host : this.guest).bodyMat.color;
+    const palette = [teamColor.getStyle(), "#ffffff", BRAND.accent];
+    for (let i = 0; i < 40; i++) {
+      const c = this.confettiPool[this.confettiIdx++ % this.confettiPool.length];
+      const a = Math.random() * Math.PI * 2;
+      const sp = 1 + Math.random() * 3;
+      c.vx = Math.cos(a) * sp - sx * 1.5; // drift back toward the pitch
+      c.vz = Math.sin(a) * sp;
+      c.vy = 4 + Math.random() * 4;
+      c.life = 1.2 + Math.random() * 0.8;
+      c.mat.color.set(palette[i % palette.length]);
+      c.mesh.position.set(sx * HW * 0.9, 0.5 + Math.random(), (Math.random() - 0.5) * FIELD.goalHalf * 2);
+      c.mesh.rotation.set(Math.random() * 3, Math.random() * 3, Math.random() * 3);
+      c.mesh.visible = true;
+    }
+    this.netPulse[sx === 1 ? "right" : "left"] = 1;
+    this.goalCamTarget.set(sx * HW * 0.55, 0, 0);
+    this.goalCamT = 1;
+    this.cheer();
   }
 
   /** Radial burst of sparks at a pitch position (kick contact). */
@@ -419,18 +465,56 @@ export class Scene3D {
       }
     }
 
-    // camera shake + fov punch (decay toward rest)
+    // confetti physics (light gravity + flutter spin)
+    for (const c of this.confettiPool) {
+      if (c.life > 0) {
+        c.life -= dt;
+        c.vy -= 4.5 * dt;
+        c.mesh.position.x += c.vx * dt;
+        c.mesh.position.y += c.vy * dt;
+        c.mesh.position.z += c.vz * dt;
+        c.mesh.rotation.x += dt * 6;
+        c.mesh.rotation.y += dt * 4;
+        c.mat.opacity = Math.min(1, Math.max(0, c.life));
+        if (c.life <= 0 || c.mesh.position.y < 0.02) {
+          c.life = 0;
+          c.mesh.visible = false;
+        }
+      }
+    }
+
+    // net pulse on goal
+    for (const side of ["left", "right"] as const) {
+      const net = this.nets[side];
+      if (net && this.netPulse[side] > 0.001) {
+        this.netPulse[side] *= Math.exp(-4 * dt);
+        const p = this.netPulse[side];
+        net.scale.setScalar(1 + p * 0.3);
+        (net.material as THREE.MeshBasicMaterial).opacity = 0.12 + p * 0.35;
+      }
+    }
+
+    // camera: goal-cam dolly toward the scoring goal, then shake + fov punch
+    this.goalCamT = Math.max(0, this.goalCamT - dt / 1.3);
+    const k = Math.sin(Math.min(1, this.goalCamT) * Math.PI) * 0.45;
+    _camPos.copy(this.basePos);
+    _look.set(0, 0, 0);
+    if (k > 0.001) {
+      _goalPos.set(this.goalCamTarget.x * 0.8, this.basePos.y * 0.55, this.basePos.z * 0.55);
+      _camPos.lerp(_goalPos, k);
+      _look.lerp(this.goalCamTarget, k);
+    }
     this.shakeI *= Math.exp(-6 * dt);
     this.fovP *= Math.exp(-5 * dt);
     const sh = this.shakeI * 0.35;
     this.camera.position.set(
-      this.basePos.x + (Math.random() - 0.5) * sh,
-      this.basePos.y + (Math.random() - 0.5) * sh,
-      this.basePos.z + (Math.random() - 0.5) * sh,
+      _camPos.x + (Math.random() - 0.5) * sh,
+      _camPos.y + (Math.random() - 0.5) * sh,
+      _camPos.z + (Math.random() - 0.5) * sh,
     );
     this.camera.fov = 46 - this.fovP * 5;
     this.camera.updateProjectionMatrix();
-    this.camera.lookAt(0, 0, 0);
+    this.camera.lookAt(_look);
 
     this.renderer.render(this.scene, this.camera);
   }
@@ -447,6 +531,11 @@ export class Scene3D {
     this.camera.updateProjectionMatrix();
   }
 }
+
+// scratch vectors (avoid per-frame allocation)
+const _camPos = new THREE.Vector3();
+const _goalPos = new THREE.Vector3();
+const _look = new THREE.Vector3();
 
 // shortest-path angle interpolation (avoids spinning the long way around)
 function lerpAngle(a: number, b: number, t: number) {

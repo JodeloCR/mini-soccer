@@ -145,12 +145,6 @@ function requestRematch() {
 // ---- render / sim loop ----
 let acc = 0;
 let prev = performance.now();
-let lastGoals = 0; // total goals seen, to fire the crowd cheer once per goal
-
-function cheerOnGoal(total: number) {
-  if (total > lastGoals) scene.cheer();
-  lastGoals = total;
-}
 
 function frame(now: number) {
   const dtReal = Math.min(0.1, (now - prev) / 1000);
@@ -171,7 +165,6 @@ function frame(now: number) {
     scene.apply(state);
     hud.update(state);
     fx.update(state);
-    cheerOnGoal(state.score.host + state.score.guest);
   } else if (started && role === "guest") {
     const inp = controls.getInput();
     inputSeq++;
@@ -194,7 +187,6 @@ function frame(now: number) {
     if (latest) {
       hud.update(latest);
       fx.update(latest);
-      cheerOnGoal(latest.score.host + latest.score.guest);
     }
   }
 

@@ -63,6 +63,7 @@ export class FxDirector {
         this.sfx.goal();
         this.scene.shake(0.6);
         this.scene.fovPunch();
+        if (s.scorer) this.scene.goalFx(s.scorer);
         navigator.vibrate?.(s.phase === "won" ? [120, 60, 120] : 90);
         if (s.phase === "won") {
           if (s.winner === this.myRole) this.sfx.win();

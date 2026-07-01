@@ -10,6 +10,8 @@ export class Hud {
   private onRematch: () => void = () => {};
   private lastPhase = "";
   private lastScorer: Role | null = null;
+  private streak = 0;
+  private streakScorer: Role | null = null;
   private teams: { host: { name: string; color: string }; guest: { name: string; color: string } } = {
     host: TEAM.host,
     guest: TEAM.guest,
@@ -56,9 +58,20 @@ export class Hud {
     (this.el.querySelector("#sg") as HTMLElement).textContent = String(s.score.guest);
     const msg = this.el.querySelector("#msg") as HTMLElement;
 
-    // brief GOAL flash when a new goal is scored
+    // streak resets whenever the score resets (kickoff/rematch)
+    if (s.score.host + s.score.guest === 0) {
+      this.streak = 0;
+      this.streakScorer = null;
+    }
+
+    // brief GOAL flash + streak bookkeeping when a new goal is scored
     if (s.scorer && (s.phase === "goal" || s.phase === "won") && this.lastScorer !== s.scorer) {
       this.flashGoal();
+      if (s.scorer === this.streakScorer) this.streak++;
+      else {
+        this.streak = 1;
+        this.streakScorer = s.scorer;
+      }
     }
     this.lastScorer = s.phase === "playing" ? null : s.scorer;
 
@@ -66,8 +79,13 @@ export class Hud {
       msg.className = "center-msg show count";
       msg.textContent = String(Math.ceil(s.timer));
     } else if (s.phase === "goal") {
-      msg.className = "center-msg show goal";
-      msg.innerHTML = `¡GOOOL!<br><small>${this.teamName(s.scorer)}</small>`;
+      if (this.lastPhase !== "goal") {
+        // set once per goal so the elastic pop animation isn't restarted every frame
+        msg.className = "center-msg show goal";
+        msg.innerHTML =
+          `¡GOOOL!<br><small>${this.teamName(s.scorer)}</small>` +
+          (this.streak >= 2 ? `<div class="streakline">🔥 ¡${this.streak} seguidos!</div>` : "");
+      }
     } else if (s.phase === "won") {
       this.showWin(s);
       return;
