@@ -17,6 +17,7 @@ export class Lobby {
     this.el.style.display = "flex";
     this.el.innerHTML = `
       <div class="card">
+        <img class="lobby-logo" src="${BRAND.logoPath}" alt="" onerror="this.remove()">
         <div class="logo-title">${BRAND.name}</div>
         <div class="subtitle">${BRAND.tagline}</div>
         <p class="hint">Fútbol 1v1 · primero a 5 goles</p>

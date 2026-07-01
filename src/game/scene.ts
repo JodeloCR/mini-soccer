@@ -620,11 +620,20 @@ function addLogo(scene: THREE.Scene) {
     BRAND.logoPath,
     (tex) => {
       tex.colorSpace = THREE.SRGBColorSpace;
-      const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true });
-      const plane = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 2.4), mat);
-      plane.rotation.x = -Math.PI / 2;
-      plane.position.set(0, 0.02, 0);
-      scene.add(plane);
+      // circular medallion: square logo (dark background) reads as a crest
+      const mat = new THREE.MeshBasicMaterial({ map: tex });
+      const disc = new THREE.Mesh(new THREE.CircleGeometry(1.25, 40), mat);
+      disc.rotation.x = -Math.PI / 2;
+      disc.position.set(0, 0.02, 0);
+      scene.add(disc);
+      // thin white rim so it sits nicely on the pitch
+      const rim = new THREE.Mesh(
+        new THREE.RingGeometry(1.25, 1.33, 40),
+        new THREE.MeshBasicMaterial({ color: "#ffffff", transparent: true, opacity: 0.75 }),
+      );
+      rim.rotation.x = -Math.PI / 2;
+      rim.position.set(0, 0.021, 0);
+      scene.add(rim);
     },
     undefined,
     () => {

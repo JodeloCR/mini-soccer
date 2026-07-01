@@ -6,7 +6,7 @@ export const BRAND = {
   // Placeholder brand colors — swap to match the restaurant logo.
   primary: "#E63A1F",
   accent: "#F4B41A",
-  logoPath: "/logo.png", // drop a transparent PNG here (optional)
+  logoPath: "/logo.jpg", // restaurant logo (center-circle medallion + lobby + share card)
 };
 
 // Selectable teams = Huateque menu items. Players pick one; the two players

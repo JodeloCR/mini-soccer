@@ -290,6 +290,15 @@ body {
   padding: 30px 26px 26px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
 }
+.lobby-logo {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid var(--accent);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+  margin-bottom: 6px;
+}
 .logo-title {
   font-size: 46px;
   font-weight: 900;

@@ -109,7 +109,17 @@ function drawLogo(g: CanvasRenderingContext2D, cx: number, cy: number): Promise<
     img.onload = () => {
       clearTimeout(t);
       const s = 180;
+      g.save();
+      g.beginPath();
+      g.arc(cx, cy, s / 2, 0, Math.PI * 2);
+      g.clip();
       g.drawImage(img, cx - s / 2, cy - s / 2, s, s);
+      g.restore();
+      g.strokeStyle = "#F4B41A";
+      g.lineWidth = 6;
+      g.beginPath();
+      g.arc(cx, cy, s / 2, 0, Math.PI * 2);
+      g.stroke();
       done();
     };
     img.onerror = () => {
