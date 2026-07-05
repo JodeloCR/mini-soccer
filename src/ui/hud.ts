@@ -1,7 +1,7 @@
 // In-match overlay: scoreboard, kickoff countdown, GOAL flash, win screen +
 // rematch, transport badge, and a portrait "rotate your phone" hint.
 
-import { TEAM, type TeamDef } from "../config";
+import { PROMO, TEAM, type TeamDef } from "../config";
 import type { GameState, Role } from "../net/protocol";
 import { shareResult } from "./share";
 
@@ -108,6 +108,8 @@ export class Hud {
           <button class="big-btn" id="rematch">Revancha</button>
           <button class="big-btn ghost" id="share">Compartir 📤</button>
         </div>`;
+    const consolationHtml =
+      !iWon && PROMO.consolationText ? `<div class="coupon-note">${PROMO.consolationText}</div>` : "";
     msg.className = `center-msg show win ${iWon ? "victory" : "defeat"}`;
     msg.innerHTML = iWon
       ? `
@@ -115,13 +117,15 @@ export class Hud {
         <div class="win-title">¡GANASTE!</div>
         <div class="win-line">Le toca a tu amigo invitar!</div>
         <div class="win-sub">${this.teamName(s.winner)} · ${score}</div>
-        <div class="upsell">🌮 Celebrá pidiendo ${this.teamName(s.winner)}</div>${buttons}`
+        <div class="upsell">🌮 Celebrá pidiendo ${this.teamName(s.winner)}</div>
+        ${PROMO.enabled ? `<div class="coupon" id="coupon"></div>` : ""}${buttons}`
       : `
         <div class="win-emoji">💸🧾</div>
         <div class="win-title">¡Perdiste!</div>
         <div class="win-line">Te toca pagar la cuenta!</div>
         <div class="win-sub">${this.teamName(s.winner)} ganó ${score}</div>
-        <div class="upsell">🌮 Consolate con ${this.teamName(other(s.winner!))}</div>${buttons}`;
+        <div class="upsell">🌮 Consolate con ${this.teamName(other(s.winner!))}</div>
+        ${consolationHtml}${buttons}`;
     (msg.querySelector("#rematch") as HTMLElement).onclick = () => this.onRematch();
     (msg.querySelector("#share") as HTMLElement).onclick = () => {
       const me = this.myRole;
@@ -134,6 +138,26 @@ export class Hud {
         oppScore: s.score[op],
       });
     };
+    if (iWon && PROMO.enabled) void this.issueCoupon(msg);
+  }
+
+  private async issueCoupon(msg: HTMLElement) {
+    const el = msg.querySelector("#coupon") as HTMLElement | null;
+    if (!el) return;
+    try {
+      const r = await fetch("/promo/issue", { method: "POST" });
+      const data = await r.json();
+      if (!r.ok || data.enabled === false || !data.code) {
+        el.remove();
+        return;
+      }
+      el.innerHTML = `
+        🎟️ <div class="coupon-reward">${PROMO.rewardText}</div>
+        <div class="coupon-code">${data.code}</div>
+        <div class="coupon-note">Mostrale este código al mesero · vence en ${data.validDays} días</div>`;
+    } catch {
+      el.remove();
+    }
   }
 
   private flashGoal() {

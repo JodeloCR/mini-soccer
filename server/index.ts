@@ -17,18 +17,49 @@ const ADMIN_KEY = process.env.ADMIN_KEY || "huateque123";
 // Runtime config overrides + usage stats, persisted to a small JSON file.
 // NOTE: on hosts with ephemeral disks (Render free) this resets on redeploy.
 const dataFile = path.resolve(__dirname, "data.json");
-interface AppData {
-  overrides: { brand?: Record<string, string>; winGoals?: number };
-  stats: { matches: number; goals: number };
+interface PromoOverride {
+  enabled?: boolean;
+  rewardText?: string;
+  consolationText?: string;
+  validDays?: number;
 }
-let data: AppData = { overrides: {}, stats: { matches: 0, goals: 0 } };
+interface PromoEntry {
+  code: string;
+  day: number;
+  redeemed: boolean;
+}
+interface AppData {
+  overrides: { brand?: Record<string, string>; winGoals?: number; promo?: PromoOverride };
+  stats: { matches: number; goals: number; coupons: { issued: number; redeemed: number } };
+  promos: PromoEntry[];
+}
+let data: AppData = {
+  overrides: {},
+  stats: { matches: 0, goals: 0, coupons: { issued: 0, redeemed: 0 } },
+  promos: [],
+};
 try {
-  data = { ...data, ...JSON.parse(fs.readFileSync(dataFile, "utf8")) };
+  const loaded = JSON.parse(fs.readFileSync(dataFile, "utf8"));
+  // Merge defensively: older data.json files won't have promos/coupons yet.
+  data = {
+    overrides: { ...loaded.overrides },
+    stats: {
+      matches: loaded.stats?.matches ?? 0,
+      goals: loaded.stats?.goals ?? 0,
+      coupons: { issued: loaded.stats?.coupons?.issued ?? 0, redeemed: loaded.stats?.coupons?.redeemed ?? 0 },
+    },
+    promos: Array.isArray(loaded.promos) ? loaded.promos : [],
+  };
 } catch {
   /* first boot — defaults */
 }
 function saveData() {
   fs.writeFile(dataFile, JSON.stringify(data), () => {});
+}
+
+const DAY_MS = 86400000;
+function today(): number {
+  return Math.floor(Date.now() / DAY_MS);
 }
 
 const app = express();
@@ -50,6 +81,16 @@ app.post("/config", (req, res) => {
   }
   const wg = Number(b.winGoals);
   if (Number.isInteger(wg) && wg >= 1 && wg <= 20) data.overrides.winGoals = wg;
+  if (b.promo && typeof b.promo === "object") {
+    const p = b.promo as PromoOverride;
+    const next: PromoOverride = { ...data.overrides.promo };
+    if (typeof p.enabled === "boolean") next.enabled = p.enabled;
+    if (typeof p.rewardText === "string" && p.rewardText.length <= 120) next.rewardText = p.rewardText;
+    if (typeof p.consolationText === "string" && p.consolationText.length <= 120) next.consolationText = p.consolationText;
+    const vd = Number(p.validDays);
+    if (Number.isInteger(vd) && vd >= 1 && vd <= 60) next.validDays = vd;
+    data.overrides.promo = next;
+  }
   saveData();
   res.json(data.overrides);
 });
@@ -68,6 +109,74 @@ app.post("/stats/match", (req, res) => {
 app.get("/stats", (req, res) => {
   if (req.query.key !== ADMIN_KEY) return res.status(403).json({ error: "bad key" });
   res.json(data.stats);
+});
+
+// Victory coupons: winner gets a code to redeem with the waiter. Text/validity
+// are restaurant-controlled via overrides.promo (admin panel). Codes persist in
+// data.json — lost on redeploy on ephemeral-disk hosts, fine for short promos.
+const PROMO_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no easily-confused chars
+const MAX_PROMOS = 500;
+const PROMO_MAX_AGE_DAYS = 60;
+const MAX_ISSUES_PER_IP_PER_DAY = 40;
+const issueCounts = new Map<string, { day: number; n: number }>();
+
+function newPromoCode(): string {
+  const part = () => {
+    let s = "";
+    for (let i = 0; i < 3; i++) s += PROMO_ALPHABET[Math.floor(Math.random() * PROMO_ALPHABET.length)];
+    return s;
+  };
+  const code = `${part()}-${part()}`;
+  return data.promos.some((p) => p.code === code) ? newPromoCode() : code;
+}
+
+function normalizeCode(raw: string): string {
+  const upper = raw.trim().toUpperCase();
+  if (upper.includes("-")) return upper;
+  return upper.length === 6 ? `${upper.slice(0, 3)}-${upper.slice(3)}` : upper;
+}
+
+app.post("/promo/issue", (req, res) => {
+  if (data.overrides.promo?.enabled === false) return res.json({ enabled: false });
+
+  const ip = req.ip ?? req.socket.remoteAddress ?? "unknown";
+  const day = today();
+  const counter = issueCounts.get(ip);
+  if (counter && counter.day === day) {
+    if (counter.n >= MAX_ISSUES_PER_IP_PER_DAY) return res.status(429).json({ error: "too many requests" });
+    counter.n++;
+  } else {
+    issueCounts.set(ip, { day, n: 1 });
+  }
+
+  const code = newPromoCode();
+  data.promos.push({ code, day, redeemed: false });
+  // prune stale entries + cap array size (drop oldest first)
+  data.promos = data.promos.filter((p) => day - p.day <= PROMO_MAX_AGE_DAYS);
+  if (data.promos.length > MAX_PROMOS) data.promos = data.promos.slice(data.promos.length - MAX_PROMOS);
+  data.stats.coupons.issued++;
+  saveData();
+
+  const validDays = data.overrides.promo?.validDays ?? 7;
+  res.json({ code, validDays });
+});
+
+app.post("/promo/redeem", (req, res) => {
+  if (req.query.key !== ADMIN_KEY) return res.status(403).json({ error: "bad key" });
+  const raw = String(req.body?.code ?? "");
+  const code = normalizeCode(raw);
+  const entry = data.promos.find((p) => p.code === code);
+  if (!entry) return res.json({ status: "invalid" });
+
+  const validDays = data.overrides.promo?.validDays ?? 7;
+  if (entry.day + validDays < today()) return res.json({ status: "expired" });
+  if (entry.redeemed) return res.json({ status: "used" });
+
+  entry.redeemed = true;
+  data.stats.coupons.redeemed++;
+  saveData();
+  const rewardText = data.overrides.promo?.rewardText ?? "10% de descuento en tu próxima visita";
+  res.json({ status: "ok", rewardText });
 });
 
 // WebRTC ICE config. STUN is always included (enables direct P2P). A TURN relay

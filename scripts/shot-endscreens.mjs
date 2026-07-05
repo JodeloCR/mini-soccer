@@ -95,11 +95,20 @@ await releaseAll();
 await sleep(400);
 const winLine = await host.$eval(".win-line", (e) => e.textContent.trim()).catch(() => "(none)");
 const winTitle = await host.$eval(".win-title", (e) => e.textContent.trim()).catch(() => "");
+// coupon: fired fire-and-forget on the winner screen; give the fetch a beat to resolve
+await sleep(500);
+const couponCode = await host.$eval(".coupon-code", (e) => e.textContent.trim()).catch(() => null);
 await host.screenshot({ path: `${OUT}/11-winner.png` });
 console.log("Round B winner:", winB, "| title:", winTitle, "| line:", winLine);
+console.log("Coupon code:", couponCode ?? "(none found)");
 
 console.log("ERRORS:", errs.length ? "\n" + errs.join("\n") : "none");
-const ok = loseLine === "Te toca pagar la cuenta!" && winLine === "Le toca a tu amigo invitar!" && !errs.length;
+const couponOk = !!couponCode && /^[A-Z0-9]{3}-[A-Z0-9]{3}$/.test(couponCode);
+const ok =
+  loseLine === "Te toca pagar la cuenta!" &&
+  winLine === "Le toca a tu amigo invitar!" &&
+  couponOk &&
+  !errs.length;
 gw.close();
 await browser.close();
 process.exit(ok ? 0 : 1);

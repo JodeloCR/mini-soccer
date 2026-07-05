@@ -69,3 +69,12 @@ export const RULES = {
   goalPause: 1.4, // s freeze after a goal (celebration)
   countdown: 3, // s kickoff countdown
 };
+
+// Victory coupon: winner gets a discount code to redeem with the waiter.
+// Text/validity are restaurant-controlled via the admin panel (server overrides).
+export const PROMO = {
+  enabled: true,
+  rewardText: "10% de descuento en tu próxima visita",
+  consolationText: "", // optional line shown to the loser (no code)
+  validDays: 7,
+};

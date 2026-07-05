@@ -159,7 +159,12 @@ export class Scene3D {
 
   private addGoals() {
     const postMat = new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 0.4 });
-    const netMat = new THREE.MeshBasicMaterial({ color: "#ffffff", transparent: true, opacity: 0.12 });
+    const netMat = new THREE.MeshBasicMaterial({
+      color: "#ffffff",
+      transparent: true,
+      opacity: 0.12,
+      side: THREE.DoubleSide,
+    });
     for (const sx of [-1, 1]) {
       for (const sy of [-1, 1]) {
         const post = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 0.95, 14), postMat);

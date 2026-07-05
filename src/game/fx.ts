@@ -66,6 +66,7 @@ export class FxDirector {
         if (s.scorer) this.scene.goalFx(s.scorer);
         navigator.vibrate?.(s.phase === "won" ? [120, 60, 120] : 90);
         if (s.phase === "won") {
+          this.sfx.crowdCheer(true);
           if (s.winner === this.myRole) this.sfx.win();
           else this.sfx.lose();
         }

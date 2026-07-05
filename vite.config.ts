@@ -11,6 +11,7 @@ export default defineConfig({
       "/ice": { target: "http://localhost:8080" },
       "/config": { target: "http://localhost:8080" },
       "/stats": { target: "http://localhost:8080" },
+      "/promo": { target: "http://localhost:8080" },
     },
   },
   build: {

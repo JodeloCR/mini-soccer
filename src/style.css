@@ -432,6 +432,27 @@ body {
   margin: -8px 0 14px;
 }
 
+.coupon {
+  border: 2px dashed var(--accent);
+  border-radius: 14px;
+  padding: 10px 14px;
+  margin-bottom: 14px;
+}
+.coupon-code {
+  font-size: 30px;
+  font-weight: 900;
+  letter-spacing: 4px;
+  color: var(--accent);
+}
+.coupon-reward {
+  font-size: 15px;
+  font-weight: 700;
+}
+.coupon-note {
+  font-size: 12px;
+  opacity: 0.75;
+}
+
 /* ---------- printable QR stickers (/?stickers=6) ---------- */
 body.print-mode {
   overflow: auto;

@@ -11,7 +11,7 @@ import { createState, step, startCountdown, resetMatch, movePlayer } from "./gam
 import { Transport } from "./net/transport";
 import { Lobby } from "./ui/lobby";
 import { Hud } from "./ui/hud";
-import { BRAND, PHYS, RULES, TEAM, teamById } from "./config";
+import { BRAND, PHYS, PROMO, RULES, TEAM, teamById } from "./config";
 import { DEFAULT_INPUT, type GameState, type Input, type Player, type Role } from "./net/protocol";
 
 const app = document.getElementById("app")!;
@@ -255,6 +255,7 @@ requestAnimationFrame(frame);
     const o = await (await fetch("/config")).json();
     if (o.brand) Object.assign(BRAND, o.brand);
     if (Number.isInteger(o.winGoals)) RULES.winGoals = o.winGoals;
+    if (o.promo) Object.assign(PROMO, o.promo);
   } catch {
     /* server unreachable or no overrides — defaults stand */
   }

@@ -68,6 +68,12 @@ Abrí la URL en el teléfono → **Crear partida** → el otro escanea el QR. Li
   con disco efímero (Render free) los cambios se pierden al redeployar.
 - **Stickers QR de mesa:** `TU_URL/?stickers=6` — hoja imprimible (imprimir → PDF).
 - **Compartir resultado:** botón en la pantalla final del juego (marketing gratis).
+- **Cupones de victoria:** el ganador recibe un código de descuento para mostrarle
+  al mesero; el mesero (o vos) lo valida en el panel admin, sección **"Verificar
+  cupón"**, que lo marca como canjeado. Texto del premio, mensaje de consuelo y
+  días de vigencia se configuran desde el mismo panel. Nota: en hosting con disco
+  efímero (Render free) los códigos se pierden al redeployar — está bien para
+  promociones de corta duración.
 
 ---
 
