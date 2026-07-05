@@ -1,0 +1,28 @@
+name: deploy
+
+# Render's GitHub autodeploy webhook has been unreliable for this repo, so we
+# trigger deploys explicitly. Setup (one time): Render dashboard → service →
+# Settings → Deploy Hook → copy the URL → GitHub repo → Settings → Secrets and
+# variables → Actions → new secret RENDER_DEPLOY_HOOK with that URL.
+# Until the secret exists this workflow just skips.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Render deploy
+        env:
+          HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+        run: |
+          if [ -z "$HOOK" ]; then
+            echo "RENDER_DEPLOY_HOOK secret not set — skipping (see comment at top of this file)"
+            exit 0
+          fi
+          code=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$HOOK")
+          echo "deploy hook -> $code"
+          [ "$code" = "200" ] || [ "$code" = "201" ]
